@@ -89,6 +89,9 @@ class SwitchConnectionClient(RunnableComponent):
     def get_cxl_connection(self):
         return self._cxl_connection
 
+    def get_port_index(self):
+        return self._port_index
+
     async def _run(self):
         if self._retry:
             time_out = 120

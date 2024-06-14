@@ -8,9 +8,11 @@
 from enum import Enum, auto
 from abc import ABC, abstractmethod
 from asyncio import create_task, gather, Condition
-from typing import Optional, Union, Callable
+from typing import Optional, Union, Callable, TypeAlias
 from opencxl.util.logger import logger
 import traceback
+
+Label: TypeAlias = Union[str, Callable[[str], str]]
 
 
 class COMPONENT_STATUS(Enum):
@@ -21,7 +23,7 @@ class COMPONENT_STATUS(Enum):
 
 
 class LabeledComponent:
-    def __init__(self, label: Optional[Union[str, Callable]] = None):
+    def __init__(self, label: Optional[Label] = None):
         self._label = label
 
     def get_message_label(self) -> str:
@@ -38,7 +40,7 @@ class LabeledComponent:
 
 
 class RunnableComponent(LabeledComponent):
-    def __init__(self, label: Optional[Union[str, Callable]] = None):
+    def __init__(self, label: Optional[Label] = None):
         super().__init__(label)
         self._condition = Condition()
         self._status = COMPONENT_STATUS.STOPPED

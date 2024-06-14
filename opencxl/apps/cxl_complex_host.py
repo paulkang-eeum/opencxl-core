@@ -6,18 +6,61 @@
 """
 
 import asyncio
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import List
 from opencxl.util.component import RunnableComponent
-from opencxl.cxl.component.root_complex import RootComplex, RootComplexConfig
+from opencxl.cxl.component.root_complex.root_complex import (
+    RootComplex,
+    RootComplexConfig,
+    RootComplexMemoryControllerConfig,
+)
+from opencxl.cxl.component.root_complex.root_port_client_manager import (
+    RootPortClientManager,
+    RootPortClientManagerConfig,
+    RootPortClientConfig,
+)
+from opencxl.cxl.component.root_complex.root_port_switch import (
+    RootPortSwitchPortConfig,
+    ROOT_PORT_SWITCH_TYPE,
+)
+from opencxl.cxl.component.root_complex.home_agent import MemoryRange
+
+
+@dataclass
+class CxlComplexHostConfig:
+    host_name: str
+    root_ports: List[RootPortClientConfig] = field(default_factory=list)
+    root_port_switch_type: ROOT_PORT_SWITCH_TYPE
+    root_bus: int = 0
+    memory_ranges: List[MemoryRange] = field(default_factory=list)
+    memory_controller: RootComplexMemoryControllerConfig
 
 
 class CxlComplexHost(RunnableComponent):
-    def __init__(
-        self,
-        root_complex_config: RootComplexConfig,
-        label: Optional[str] = None,
-    ):
-        super().__init__(label)
+    def __init__(self, config: CxlComplexHostConfig):
+        super().__init__(lambda class_name: f"{config.host_name}:{class_name}")
+
+        # Create Root Port Client Manager
+        root_port_client_manager_config = RootPortClientManagerConfig(
+            client_configs=config.root_ports, host_name=config.host_name
+        )
+        self._root_port_client_manager = RootPortClientManager(root_port_client_manager_config)
+
+        # Create Root Complex
+        root_complex_root_ports = [
+            RootPortSwitchPortConfig(
+                port_index=connection.port_index, downstream_connection=connection
+            )
+            for connection in self._root_port_client_manager.get_cxl_connections()
+        ]
+        root_complex_config = RootComplexConfig(
+            root_port_switch_type=config.root_port_switch_type,
+            host_name=config.host_name,
+            root_bus=config.root_bus,
+            root_ports=root_complex_root_ports,
+            memory_ranges=[],
+            memory_controller=config.memory_controller,
+        )
         self._root_complex = RootComplex(root_complex_config)
 
     def get_root_complex(self):
@@ -36,11 +79,21 @@ class CxlComplexHost(RunnableComponent):
         return await self._root_complex.read_mmio(address, size)
 
     async def _run(self):
-        tasks = [asyncio.create_task(self._root_complex.run())]
-        await self._root_complex.wait_for_ready()
+        run_tasks = [
+            asyncio.create_task(self._root_port_client_manager.run()),
+            asyncio.create_task(self._root_complex.run()),
+        ]
+        wait_tasks = [
+            asyncio.create_task(self._root_port_client_manager.wait_for_ready()),
+            asyncio.create_task(self._root_complex.wait_for_ready()),
+        ]
+        await asyncio.gather(*wait_tasks)
         await self._change_status_to_running()
-        await asyncio.gather(*tasks)
+        await asyncio.gather(*run_tasks)
 
     async def _stop(self):
-        tasks = [asyncio.create_task(self._root_complex.stop())]
+        tasks = [
+            asyncio.create_task(self._root_port_client_manager.stop()),
+            asyncio.create_task(self._root_complex.stop()),
+        ]
         await asyncio.gather(*tasks)

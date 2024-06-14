@@ -1,6 +1,11 @@
 import asyncio
-from opencxl.apps.cxl_complex_host import CxlComplexHost, RootComplexConfig
-from opencxl.cxl.component.root_complex import ROOT_PORT_SWITCH_TYPE
+from opencxl.apps.cxl_complex_host import (
+    CxlComplexHost,
+    CxlComplexHostConfig,
+    RootPortClientConfig,
+    ROOT_PORT_SWITCH_TYPE,
+    RootComplexMemoryControllerConfig,
+)
 from opencxl.apps.pci_device import PciDeviceClient
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
@@ -79,10 +84,20 @@ def main():
     apps = []
 
     # Add Host
-    host_config = RootComplexConfig
-    host_config.host_name = "CXLHost"
-    host_config.root_bus = 0
-    host_config.root_port_switch_type = ROOT_PORT_SWITCH_TYPE.PASS_THROUGH
+    switch_host = "0.0.0.0"
+    switch_port = 8000
+    host_config = CxlComplexHostConfig(
+        host_name="CXLHost",
+        root_bus=0,
+        root_port_switch_type=ROOT_PORT_SWITCH_TYPE.PASS_THROUGH,
+        root_ports=[
+            RootPortClientConfig(port_index=0, switch_host=switch_host, switch_port=switch_port)
+        ],
+        memory_ranges=[],
+        memory_controller=RootComplexMemoryControllerConfig(
+            memory_size=0x10000, memory_filename="memory_dram.bin"
+        ),
+    )
     host = CxlComplexHost(host_config)
     apps.append(host)
 

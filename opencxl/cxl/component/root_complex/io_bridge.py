@@ -1,0 +1,165 @@
+from dataclasses import dataclass
+from typing import cast
+from asyncio import create_task, gather
+from opencxl.util.component import RunnableComponent
+from opencxl.pci.component.fifo_pair import FifoPair
+from opencxl.cxl.component.root_complex.memory_fifo import MemoryFifoPair
+from opencxl.util.logger import logger
+from opencxl.util.pci import (
+    extract_bus_from_bdf,
+    extract_device_from_bdf,
+    bdf_to_string,
+)
+from opencxl.cxl.transport.transaction import (
+    CxlIoCfgRdPacket,
+    CxlIoCfgWrPacket,
+    CxlIoCompletionPacket,
+    CxlIoCompletionWithDataPacket,
+    CxlIoMemRdPacket,
+    CxlIoMemWrPacket,
+    is_cxl_io_completion_status_sc,
+)
+
+
+@dataclass
+class IoBridgeConfig:
+    cxl_io_cfg_fifos: FifoPair
+    cxl_io_mmio_fifos: FifoPair
+    memory_producer_fifos: MemoryFifoPair
+    host_name: str
+
+
+class IoBridge(RunnableComponent):
+    def __init__(self, config: IoBridgeConfig):
+        super().__init__(lambda class_name: f"{config.host_name}:{class_name}")
+        self._cxl_io_cfg_fifos = config.cxl_io_cfg_fifos
+        self._cxl_io_mmio_fifos = config.cxl_io_mmio_fifos
+        self._memory_producer_fifos = config.memory_producer_fifos
+
+    async def _get_mmio_response(self, tag: int):
+        pass
+
+    async def write_config(self, bdf: int, offset: int, size: int, value: int):
+        bus = extract_bus_from_bdf(bdf)
+        if self._root_bus == bus and self._is_pass_through:
+            raise Exception("Accessing Root Port isn't supported under pass-through mode")
+
+        bdf_string = bdf_to_string(bdf)
+        is_type0 = bus == self._get_secondary_bus()
+        if is_type0:
+            # NOTE: For non-ARI component, only allow device 0
+            device_num = extract_device_from_bdf(bdf)
+            if device_num != 0:
+                return
+
+        packet = CxlIoCfgWrPacket.create(
+            bdf, offset, size, value, is_type0, req_id=0, tag=self._next_tag
+        )
+        self._next_tag = (self._next_tag + 1) % 256
+
+        await self._cxl_io_cfg_fifos.host_to_target.put(packet)
+
+        # TODO: Wait for an incoming packet that matchs tag
+        packet = await self._cxl_io_cfg_fifos.target_to_host.get()
+
+        tpl_type_str = "CFG WR0" if is_type0 else "CFG WR1"
+
+        if not is_cxl_io_completion_status_sc(packet):
+            cpl_packet = cast(CxlIoCompletionPacket, packet)
+            logger.debug(
+                self._create_message(
+                    f"[{bdf_string}] {tpl_type_str} @ 0x{offset:x}[{size}B] : "
+                    + f"Unsuccessful, Status: 0x{cpl_packet.cpl_header.status:x}"
+                )
+            )
+            return
+
+        logger.debug(
+            self._create_message(
+                f"[{bdf_string}] {tpl_type_str} @ 0x{offset:x}[{size}B] : 0x{value:x}"
+            )
+        )
+
+    async def read_config(self, bdf: int, offset: int, size: int) -> int:
+        if offset + size > ((offset // 4) + 1) * 4:
+            raise Exception("offset + size out of DWORD boundary")
+
+        bit_mask = (1 << size * 8) - 1
+
+        bus = extract_bus_from_bdf(bdf)
+        if self._root_bus == bus and self._is_pass_through:
+            raise Exception("Accessing Root Port isn't supported under pass-through mode")
+
+        bdf_string = bdf_to_string(bdf)
+        is_type0 = bus == self._get_secondary_bus()
+        if is_type0:
+            # NOTE: For non-ARI component, only allow device 0
+            device_num = extract_device_from_bdf(bdf)
+            if device_num != 0:
+                return 0xFFFFFFFF & bit_mask
+
+        packet = CxlIoCfgRdPacket.create(bdf, offset, size, is_type0, req_id=0, tag=self._next_tag)
+        self._next_tag = (self._next_tag + 1) % 256
+        await self._cxl_io_cfg_fifos.host_to_target.put(packet)
+
+        # TODO: Wait for an incoming packet that matchs tag
+        packet = await self._cxl_io_cfg_fifos.target_to_host.get()
+
+        bit_offset = (offset % 4) * 8
+
+        tpl_type_str = "CFG RD0" if is_type0 else "CFG RD1"
+
+        if not is_cxl_io_completion_status_sc(packet):
+            cpl_packet = cast(CxlIoCompletionPacket, packet)
+            logger.debug(
+                self._create_message(
+                    f"[{bdf_string}] {tpl_type_str} @ 0x{offset:x}[{size}B] : "
+                    + f"Unsuccessful, Status: 0x{cpl_packet.cpl_header.status:x}"
+                )
+            )
+            return 0xFFFFFFFF & bit_mask
+
+        cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
+        data = (cpld_packet.data >> bit_offset) & bit_mask
+
+        logger.debug(
+            self._create_message(
+                f"[{bdf_string}] {tpl_type_str} @ 0x{offset:x}[{size}B] : 0x{data:x}"
+            )
+        )
+        return data
+
+    async def write_mmio(self, address: int, size: int, value: int):
+        message = self._create_message(f"MMIO: Writing 0x{value:08x} to 0x{address:08x}")
+        logger.debug(message)
+        packet = CxlIoMemWrPacket.create(address, size, value)
+        print(packet.get_pretty_string())
+        print(packet.get_hex_dump())
+        await self._cxl_io_mmio_fifos.host_to_target.put(packet)
+
+    async def read_mmio(self, address: int, size: int) -> CxlIoCompletionWithDataPacket:
+        message = self._create_message(f"MMIO: Reading data from 0x{address:08x}")
+        logger.debug(message)
+        packet = CxlIoMemRdPacket.create(address, size)
+        await self._cxl_io_mmio_fifos.host_to_target.put(packet)
+
+        packet = await self._get_mmio_response(packet.mreq_header.tag)
+        assert is_cxl_io_completion_status_sc(packet)
+        cpld_packet = cast(CxlIoCompletionWithDataPacket, packet)
+        return cpld_packet.data
+
+    async def process_target_to_host_mmio_packets(self):
+        while True:
+            packet = await self._cxl_io_mmio_fifos.request.get()
+            if packet is None:
+                logger.debug(self._create_message("Stopped processing target to host MMIO packets"))
+                break
+            # TODO: Process target to host packets
+
+    async def _run(self):
+        tasks = [create_task(self.process_target_to_host_mmio_packets())]
+        await self._change_status_to_running()
+        await gather(*tasks)
+
+    async def _stop(self):
+        await self._cxl_io_mmio_fifos.put(None)
