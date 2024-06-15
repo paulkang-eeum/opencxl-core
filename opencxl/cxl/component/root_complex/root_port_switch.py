@@ -8,15 +8,12 @@
 from abc import ABC, abstractmethod
 import asyncio
 from dataclasses import dataclass, field
-from typing import Optional, List
+from typing import List
 from enum import Enum, auto
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
-from opencxl.cxl.component.cxl_connection import FifoPair, CxlConnection
-from opencxl.pci.component.packet_processor import PacketProcessor
 from opencxl.cxl.component.cxl_connection import CxlConnection
-from opencxl.cxl.component.switch_connection_client import SwitchConnectionClient
-from opencxl.cxl.component.cxl_component import CXL_COMPONENT_TYPE
+from opencxl.pci.component.packet_processor import PacketProcessor
 
 
 class ROOT_PORT_SWITCH_TYPE(Enum):
@@ -44,6 +41,17 @@ class CxlRootPort(RunnableComponent):
         self._is_pass_through = config.is_pass_through
         self._upstream_connection = config.upstream_connection
         self._downstream_connection = config.downstream_connection
+
+        self._cxl_io_cfg_processor = PacketProcessor(
+            self._upstream_connection.cfg_fifo,
+            self._downstream_connection.cfg_fifo,
+            lambda _: f"{self.get_message_label()}:FifoRelay:CXL.io CFG",
+        )
+        self._cxl_io_mmio_processor = PacketProcessor(
+            self._upstream_connection.mmio_fifo,
+            self._downstream_connection.mmio_fifo,
+            lambda _: f"{self.get_message_label()}:FifoRelay:CXL.io MMIO",
+        )
         self._cxl_mem_processor = PacketProcessor(
             self._upstream_connection.cxl_mem_fifo,
             self._downstream_connection.cxl_mem_fifo,
@@ -57,12 +65,14 @@ class CxlRootPort(RunnableComponent):
 
     async def _run(self):
         run_tasks = [
-            asyncio.create_task(self._switch_client.run()),
+            asyncio.create_task(self._cxl_io_cfg_processor.run()),
+            asyncio.create_task(self._cxl_io_mmio_processor.run()),
             asyncio.create_task(self._cxl_mem_processor.run()),
             asyncio.create_task(self._cxl_cache_processor.run()),
         ]
         wait_tasks = [
-            asyncio.create_task(self._switch_client.wait_for_ready()),
+            asyncio.create_task(self._cxl_io_cfg_processor.wait_for_ready()),
+            asyncio.create_task(self._cxl_io_mmio_processor.wait_for_ready()),
             asyncio.create_task(self._cxl_mem_processor.wait_for_ready()),
             asyncio.create_task(self._cxl_cache_processor.wait_for_ready()),
         ]
@@ -72,7 +82,8 @@ class CxlRootPort(RunnableComponent):
 
     async def _stop(self):
         tasks = [
-            asyncio.create_task(self._switch_client.stop()),
+            asyncio.create_task(self._cxl_io_cfg_processor.stop()),
+            asyncio.create_task(self._cxl_io_mmio_processor.stop()),
             asyncio.create_task(self._cxl_mem_processor.stop()),
             asyncio.create_task(self._cxl_cache_processor.stop()),
         ]
@@ -87,10 +98,10 @@ class RootPortSwitchPortConfig:
 
 @dataclass
 class RootPortSwitchConfig:
-    host_name: str = "Host"
-    root_bus: int = 0
-    root_ports: List[RootPortSwitchPortConfig] = field(default_factory=list)
     upstream_connection: CxlConnection
+    host_name: str
+    root_bus: int
+    root_ports: List[RootPortSwitchPortConfig] = field(default_factory=list)
 
 
 class RootPortSwitchBase(RunnableComponent, ABC):
@@ -102,6 +113,8 @@ class RootPortSwitchBase(RunnableComponent, ABC):
 class SimpleRootPortSwitch(RootPortSwitchBase):
     def __init__(self, config: RootPortSwitchConfig):
         super().__init__(lambda class_name: f"{config.host_name}:{class_name}")
+        if len(config.root_ports) != 1:
+            raise Exception("the length of config.root_ports must be 1 for SimpleRootPortSwitch")
         cxl_root_port_config = CxlRootPortConfig(
             port_index=config.root_ports[0].port_index,
             upstream_connection=config.upstream_connection,
@@ -109,7 +122,7 @@ class SimpleRootPortSwitch(RootPortSwitchBase):
             is_pass_through=True,
             host_name=config.host_name,
         )
-        self._root_port_device_client = CxlRootPort(CxlRootPortConfig(cxl_root_port_config))
+        self._root_port_device_client = CxlRootPort(cxl_root_port_config)
         self._root_bus_num = config.root_bus + 1
 
     def get_root_bus(self) -> int:

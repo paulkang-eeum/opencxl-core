@@ -29,11 +29,11 @@ from opencxl.cxl.component.root_complex.home_agent import MemoryRange
 @dataclass
 class CxlComplexHostConfig:
     host_name: str
-    root_ports: List[RootPortClientConfig] = field(default_factory=list)
+    root_bus: int
     root_port_switch_type: ROOT_PORT_SWITCH_TYPE
-    root_bus: int = 0
-    memory_ranges: List[MemoryRange] = field(default_factory=list)
     memory_controller: RootComplexMemoryControllerConfig
+    root_ports: List[RootPortClientConfig] = field(default_factory=list)
+    memory_ranges: List[MemoryRange] = field(default_factory=list)
 
 
 class CxlComplexHost(RunnableComponent):
@@ -49,7 +49,7 @@ class CxlComplexHost(RunnableComponent):
         # Create Root Complex
         root_complex_root_ports = [
             RootPortSwitchPortConfig(
-                port_index=connection.port_index, downstream_connection=connection
+                port_index=connection.port_index, downstream_connection=connection.connection
             )
             for connection in self._root_port_client_manager.get_cxl_connections()
         ]

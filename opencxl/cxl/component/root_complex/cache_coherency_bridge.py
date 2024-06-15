@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 from asyncio import create_task, gather
-from typing import List
 from opencxl.util.component import RunnableComponent
 from opencxl.pci.component.fifo_pair import FifoPair
-from opencxl.cxl.component.root_complex.memory_fifo import MemoryFifoPair, MEMORY_REQUEST_TYPE, MemoryResponse, MEMORY_RESPONSE_STATUS,
+from opencxl.cxl.component.root_complex.memory_fifo import MemoryFifoPair
 from opencxl.util.logger import logger
+
 
 @dataclass
 class CacheCoherencyBridgeConfig:
@@ -18,8 +18,8 @@ class CacheCoherencyBridge(RunnableComponent):
     def __init__(self, config: CacheCoherencyBridgeConfig):
         super().__init__(lambda class_name: f"{config.host_name}:{class_name}")
         self._memory_producer_fifos = config.memory_producer_fifos
-        self._upstream_cxl_cache_fifos = config.upstream_cxl_mem_fifos
-        self._downstream_cxl_cache_fifos = config.upstream_cxl_mem_fifos
+        self._upstream_cxl_cache_fifos = config.upstream_cxl_cache_fifos
+        self._downstream_cxl_cache_fifos = config.downstream_cxl_cache_fifos
 
     async def _process_upstream_host_to_target_packets(self):
         while True:
@@ -48,7 +48,7 @@ class CacheCoherencyBridge(RunnableComponent):
     async def _run(self):
         tasks = [
             create_task(self._process_upstream_host_to_target_packets()),
-            create_task(self._process_downstream_target_to_host_packets())
+            create_task(self._process_downstream_target_to_host_packets()),
         ]
         await self._change_status_to_running()
         await gather(*tasks)

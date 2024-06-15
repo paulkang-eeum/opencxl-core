@@ -45,11 +45,11 @@ class RootComplexMemoryControllerConfig:
 @dataclass
 class RootComplexConfig:
     root_port_switch_type: ROOT_PORT_SWITCH_TYPE
-    host_name: str = "Host"
-    root_bus: int = 0
+    host_name: str
+    root_bus: int
+    memory_controller: RootComplexMemoryControllerConfig
     root_ports: List[RootPortSwitchPortConfig] = field(default_factory=list)
     memory_ranges: List[MemoryRange] = field(default_factory=list)
-    memory_controller: RootComplexMemoryControllerConfig
 
 
 class RootComplex(RunnableComponent):
@@ -57,7 +57,7 @@ class RootComplex(RunnableComponent):
         super().__init__(lambda class_name: f"{config.host_name}:{class_name}")
 
         root_complex_upstream_connection = CxlConnection()
-        root_port_switch_upstream_connection = CxlConnection
+        root_port_switch_upstream_connection = CxlConnection()
         io_bridge_to_home_agent_memory_fifo = MemoryFifoPair()
         coh_bridge_to_home_agent_memory_fifo = MemoryFifoPair()
         home_agent_to_memory_controller_fifo = MemoryFifoPair()
@@ -78,10 +78,11 @@ class RootComplex(RunnableComponent):
 
         # Create IO Bridge
         io_bridge_config = IoBridgeConfig(
-            root_port_switch_upstream_connection.cfg_fifo,
-            root_port_switch_upstream_connection.mmio_fifo,
-            io_bridge_to_home_agent_memory_fifo,
-            config.host_name,
+            root_bus=config.root_bus,
+            cxl_io_cfg_fifos=root_port_switch_upstream_connection.cfg_fifo,
+            cxl_io_mmio_fifos=root_port_switch_upstream_connection.mmio_fifo,
+            memory_producer_fifos=io_bridge_to_home_agent_memory_fifo,
+            host_name=config.host_name,
         )
         self._io_bridge = IoBridge(io_bridge_config)
 
@@ -108,7 +109,7 @@ class RootComplex(RunnableComponent):
 
         # Create Memory Controller
         memory_controller_config = MemoryControllerConfig(
-            memory_size=config.memory_controller.memory_filename,
+            memory_size=config.memory_controller.memory_size,
             memory_filename=config.memory_controller.memory_filename,
             host_name=config.host_name,
             memory_consumer_fifos=home_agent_to_memory_controller_fifo,

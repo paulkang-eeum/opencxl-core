@@ -4,7 +4,12 @@ from enum import Enum, auto
 from typing import List
 from opencxl.util.component import RunnableComponent
 from opencxl.pci.component.fifo_pair import FifoPair
-from opencxl.cxl.component.root_complex.memory_fifo import MemoryFifoPair, MEMORY_REQUEST_TYPE, MemoryResponse, MEMORY_RESPONSE_STATUS,
+from opencxl.cxl.component.root_complex.memory_fifo import (
+    MemoryFifoPair,
+    MEMORY_REQUEST_TYPE,
+    MemoryResponse,
+    MEMORY_RESPONSE_STATUS,
+)
 from opencxl.util.logger import logger
 
 
@@ -13,11 +18,13 @@ class MEMORY_RANGE_TYPE(Enum):
     CXL = auto()
     OOB = auto()
 
+
 @dataclass
 class MemoryRange:
     type: MEMORY_RANGE_TYPE
     base_address: int
     size: int
+
 
 @dataclass
 class HomeAgentConfig:
@@ -46,7 +53,7 @@ class HomeAgent(RunnableComponent):
             if address >= memory_range.base_address and end_address <= memory_range_end:
                 return memory_range
         return MemoryRange(type=MEMORY_RANGE_TYPE.OOB, base_address=0, size=0)
-    
+
     async def _write_memory(self, address: int, size: int, value: int):
         # TODO: Send memory request to either CXL or DRAM
         pass
@@ -59,7 +66,9 @@ class HomeAgent(RunnableComponent):
         while True:
             packet = await self._memory_consumer_io_fifos.request.get()
             if packet is None:
-                logger.debug(self._create_message("Stopped processing memory access requests from IO Bridge"))
+                logger.debug(
+                    self._create_message("Stopped processing memory access requests from IO Bridge")
+                )
                 break
             if packet.type == MEMORY_REQUEST_TYPE.WRITE:
                 self._write_memory(packet.address, packet.size, packet.data)
@@ -74,7 +83,11 @@ class HomeAgent(RunnableComponent):
         while True:
             packet = await self._memory_consumer_coh_fifos.request.get()
             if packet is None:
-                logger.debug(self._create_message("Stopped processing memory access requests from Cache Coherency Bridge"))
+                logger.debug(
+                    self._create_message(
+                        "Stopped processing memory access requests from Cache Coherency Bridge"
+                    )
+                )
                 break
             if packet.type == MEMORY_REQUEST_TYPE.WRITE:
                 self._write_memory(packet.address, packet.size, packet.data)
@@ -82,7 +95,7 @@ class HomeAgent(RunnableComponent):
                 await self._memory_consumer_coh_fifos.response.put(response)
             elif packet.type == MEMORY_REQUEST_TYPE.READ:
                 data = self._read_memory(packet.address, packet.size)
-                data = 0 
+                data = 0
                 response = MemoryResponse(MEMORY_RESPONSE_STATUS.OK, data)
                 await self._memory_consumer_coh_fifos.response.put(response)
 
@@ -115,7 +128,7 @@ class HomeAgent(RunnableComponent):
             create_task(self._process_memory_io_bridge_requests()),
             create_task(self._process_memory_coh_bridge_requests()),
             create_task(self._process_upstream_host_to_target_packets()),
-            create_task(self._process_downstream_target_to_host_packets())
+            create_task(self._process_downstream_target_to_host_packets()),
         ]
         await self._change_status_to_running()
         await gather(*tasks)

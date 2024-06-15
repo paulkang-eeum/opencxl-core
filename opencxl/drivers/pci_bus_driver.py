@@ -21,7 +21,7 @@ from opencxl.util.pci import (
     bdf_to_string,
     generate_bdfs_for_bus,
 )
-from opencxl.cxl.component.root_complex import RootComplex
+from opencxl.cxl.component.root_complex.root_complex import RootComplex
 
 BRIDGE_CLASS = PCI_CLASS.BRIDGE << 8 | PCI_BRIDGE_SUBCLASS.PCI_BRIDGE
 
@@ -114,6 +114,7 @@ class PciBusDriver(LabeledComponent):
         return 0xFFFFFFFF - data + 1
 
     async def _read_vid_did(self, bdf: int) -> Optional[int]:
+        logger.debug(self._create_message(f"Reading VID/DID from {bdf_to_string(bdf)}"))
         vid = await self._root_complex.read_config(
             bdf, REG_ADDR.VENDOR_ID.START, REG_ADDR.VENDOR_ID.LEN
         )
@@ -199,6 +200,7 @@ class PciBusDriver(LabeledComponent):
         return size
 
     async def _scan_bus(self, bus: int, memory_start: int) -> Tuple[int, int]:
+        logger.debug(self._create_message(f"Scanning PCI Bus {bus}"))
         bdf_list = generate_bdfs_for_bus(bus)
         multi_function_devices = set()
 

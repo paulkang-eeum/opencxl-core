@@ -23,6 +23,7 @@ from opencxl.cxl.transport.transaction import (
 
 @dataclass
 class IoBridgeConfig:
+    root_bus: int
     cxl_io_cfg_fifos: FifoPair
     cxl_io_mmio_fifos: FifoPair
     memory_producer_fifos: MemoryFifoPair
@@ -32,18 +33,25 @@ class IoBridgeConfig:
 class IoBridge(RunnableComponent):
     def __init__(self, config: IoBridgeConfig):
         super().__init__(lambda class_name: f"{config.host_name}:{class_name}")
+        self._root_bus = config.root_bus
         self._cxl_io_cfg_fifos = config.cxl_io_cfg_fifos
         self._cxl_io_mmio_fifos = config.cxl_io_mmio_fifos
         self._memory_producer_fifos = config.memory_producer_fifos
+        self._next_tag = 0
 
     async def _get_mmio_response(self, tag: int):
         pass
 
+    def _get_secondary_bus(self) -> int:
+        return self._root_bus + 1
+
     async def write_config(self, bdf: int, offset: int, size: int, value: int):
+        # TODO: Move pass-through handling to Root Port Switch
         bus = extract_bus_from_bdf(bdf)
         if self._root_bus == bus and self._is_pass_through:
             raise Exception("Accessing Root Port isn't supported under pass-through mode")
 
+        # TODO: Set CfgRd/CfgWr type from RootPortSwitch
         bdf_string = bdf_to_string(bdf)
         is_type0 = bus == self._get_secondary_bus()
         if is_type0:
@@ -81,16 +89,19 @@ class IoBridge(RunnableComponent):
         )
 
     async def read_config(self, bdf: int, offset: int, size: int) -> int:
+        logger.debug(self._create_message("Reading config from IO Bridge"))
         if offset + size > ((offset // 4) + 1) * 4:
             raise Exception("offset + size out of DWORD boundary")
 
         bit_mask = (1 << size * 8) - 1
 
         bus = extract_bus_from_bdf(bdf)
+        # TODO: Move pass-through handling to Root Port Switch
         if self._root_bus == bus and self._is_pass_through:
             raise Exception("Accessing Root Port isn't supported under pass-through mode")
 
         bdf_string = bdf_to_string(bdf)
+        # TODO: Set CfgRd/CfgWr type from RootPortSwitch
         is_type0 = bus == self._get_secondary_bus()
         if is_type0:
             # NOTE: For non-ARI component, only allow device 0
@@ -103,6 +114,7 @@ class IoBridge(RunnableComponent):
         await self._cxl_io_cfg_fifos.host_to_target.put(packet)
 
         # TODO: Wait for an incoming packet that matchs tag
+        logger.debug(self._create_message("Putting Read Config packet to FIFO"))
         packet = await self._cxl_io_cfg_fifos.target_to_host.get()
 
         bit_offset = (offset % 4) * 8
@@ -133,8 +145,6 @@ class IoBridge(RunnableComponent):
         message = self._create_message(f"MMIO: Writing 0x{value:08x} to 0x{address:08x}")
         logger.debug(message)
         packet = CxlIoMemWrPacket.create(address, size, value)
-        print(packet.get_pretty_string())
-        print(packet.get_hex_dump())
         await self._cxl_io_mmio_fifos.host_to_target.put(packet)
 
     async def read_mmio(self, address: int, size: int) -> CxlIoCompletionWithDataPacket:
@@ -150,7 +160,7 @@ class IoBridge(RunnableComponent):
 
     async def process_target_to_host_mmio_packets(self):
         while True:
-            packet = await self._cxl_io_mmio_fifos.request.get()
+            packet = await self._cxl_io_mmio_fifos.target_to_host.get()
             if packet is None:
                 logger.debug(self._create_message("Stopped processing target to host MMIO packets"))
                 break

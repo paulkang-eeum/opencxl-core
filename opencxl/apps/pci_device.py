@@ -7,7 +7,7 @@
 
 from asyncio import gather, create_task
 from opencxl.util.component import RunnableComponent
-from opencxl.pci.device.pci_device import PciDevice
+from opencxl.pci.device.pci_device import PciDevice as PciDeviceInternal
 from opencxl.pci.component.pci import (
     PciComponentIdentity,
     EEUM_VID,
@@ -19,7 +19,7 @@ from opencxl.cxl.component.switch_connection_client import SwitchConnectionClien
 from opencxl.cxl.component.cxl_component import CXL_COMPONENT_TYPE
 
 
-class PciDeviceClient(RunnableComponent):
+class PciDevice(RunnableComponent):
     def __init__(
         self,
         port_index: int,
@@ -30,9 +30,13 @@ class PciDeviceClient(RunnableComponent):
         label = f"Port{port_index}"
         super().__init__(label)
         self._sw_conn_client = SwitchConnectionClient(
-            port_index, CXL_COMPONENT_TYPE.LD, host=host, port=port
+            port_index,
+            CXL_COMPONENT_TYPE.LD,
+            host=host,
+            port=port,
+            parent_name=f"PciDevice{port_index}",
         )
-        self._pci_device = PciDevice(
+        self._pci_device = PciDeviceInternal(
             transport_connection=self._sw_conn_client.get_cxl_connection(),
             identity=PciComponentIdentity(
                 EEUM_VID,

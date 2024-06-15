@@ -39,6 +39,7 @@ class PacketProcessor(RunnableComponent):
             if packet is None:
                 logger.debug(self._create_message("Stopped host to target packets"))
                 break
+            logger.debug(self._create_message("Received host to target Packet"))
             await self._downstream_fifo.host_to_target.put(packet)
 
     async def _process_target_to_host(self):
@@ -51,6 +52,7 @@ class PacketProcessor(RunnableComponent):
             if packet is None:
                 logger.debug(self._create_message("Stopped target to host packets"))
                 break
+            logger.debug(self._create_message("Received target to host Packet"))
             await self._upstream_fifo.target_to_host.put(packet)
 
     async def _run(self):

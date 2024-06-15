@@ -28,8 +28,8 @@ class RootPortClientConfig:
 
 @dataclass
 class RootPortClientManagerConfig:
-    client_configs: List[RootPortClientConfig] = field(default_factory=list)
     host_name: str
+    client_configs: List[RootPortClientConfig] = field(default_factory=list)
 
 
 @dataclass
@@ -49,6 +49,7 @@ class RootPortClientManager(RunnableComponent):
                 CXL_COMPONENT_TYPE.R,
                 host=client_config.switch_host,
                 port=client_config.switch_port,
+                parent_name=self.get_message_label(),
             )
             self._switch_clients.append(connection_client)
 
