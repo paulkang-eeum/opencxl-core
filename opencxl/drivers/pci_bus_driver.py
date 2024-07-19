@@ -22,6 +22,7 @@ from opencxl.util.pci import (
     generate_bdfs_for_bus,
 )
 from opencxl.cxl.component.root_complex.root_complex import RootComplex
+from pprint import pprint
 
 BRIDGE_CLASS = PCI_CLASS.BRIDGE << 8 | PCI_BRIDGE_SUBCLASS.PCI_BRIDGE
 
@@ -40,6 +41,7 @@ class PciBusDriver(LabeledComponent):
         root_bus = self._root_complex.get_root_bus()
         mmio_base_address = self._root_complex.get_mmio_base_address()
         await self._scan_bus(root_bus, mmio_base_address)
+        pprint(self._devices)
 
     async def _init_pci_devices(self):
         pass
