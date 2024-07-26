@@ -8,12 +8,45 @@ from opencxl.apps.cxl_complex_host import (
     ROOT_PORT_SWITCH_TYPE,
     RootComplexMemoryControllerConfig,
 )
+from opencxl.apps.cxl_host import CxlHost
 from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent
 from opencxl.drivers.pci_bus_driver import PciBusDriver
 from opencxl.drivers.cxl_bus_driver import CxlBusDriver
 from opencxl.drivers.cxl_mem_driver import CxlMemDriver
 from typing import List, cast
+
+
+class SimpleHostWrapper:
+    def __init__(self, host: CxlHost):
+        self._host = host
+
+    async def write_config(self, bdf: int, offset: int, size: int, value: int):
+        await self._host._root_port_device.write_config(bdf, offset, size, value)
+
+    async def read_config(self, bdf: int, offset: int, size: int) -> int:
+        return await self._host._root_port_device.read_config(bdf, offset, size)
+
+    async def write_mmio(self, address: int, size: int, value: int):
+        await self._host._root_port_device.write_mmio(address, value, size)
+
+    async def read_mmio(self, address: int, size: int) -> int:
+        return await self._host._root_port_device.read_mmio(address, size)
+
+    async def write_cxl_mem(self, address: int, value: int) -> int:
+        return await self._host._root_port_device.cxl_mem_write(address, value)
+
+    async def read_cxl_mem(self, address: int) -> int:
+        return await self._host._root_port_device.cxl_mem_read(address)
+
+    def get_hpa_base(self) -> int:
+        return self._host._root_port_device.get_hpa_base()
+
+    def get_root_bus(self) -> int:
+        return 1
+
+    def get_mmio_base_address(self) -> int:
+        return 0x80000000
 
 
 class TestRunner:
@@ -36,18 +69,22 @@ class TestRunner:
     async def run_test(self):
         logger.info("Waiting for Apps to be ready")
         await self.wait_for_ready()
-        host = cast(CxlComplexHost, self._apps[0])
-        pci_bus_driver = PciBusDriver(host.get_root_complex())
+        host = cast(CxlHost, self._apps[0])
+        wrapper = SimpleHostWrapper(host)
+
+        pci_bus_driver = PciBusDriver(wrapper)
         logger.info("Starting PCI bus driver init")
         await pci_bus_driver.init()
         logger.info("Completed PCI bus driver init")
-        cxl_bus_driver = CxlBusDriver(pci_bus_driver, host.get_root_complex())
+        cxl_bus_driver = CxlBusDriver(pci_bus_driver, wrapper)
         logger.info("Starting CXL bus driver init")
         await cxl_bus_driver.init()
         logger.info("Completed CXL bus driver init")
-        cxl_mem_driver = CxlMemDriver(cxl_bus_driver, host.get_root_complex())
+        cxl_mem_driver = CxlMemDriver(cxl_bus_driver, wrapper)
 
-        hpa_base = 0xA0000000
+        # Configure HDM Decoder
+        hpa_base = wrapper.get_hpa_base()
+        address_ranges = []
         next_available_hpa_base = hpa_base
         for device in cxl_mem_driver.get_devices():
             size = device.get_memory_size()
@@ -55,7 +92,16 @@ class TestRunner:
                 device, next_available_hpa_base, size
             )
             if successful:
+                address_ranges.append((next_available_hpa_base, size))
                 next_available_hpa_base += size
+
+        # Send Traffic
+        for range in address_ranges:
+            (address, size) = range
+            await wrapper.write_cxl_mem(address, address)
+            logger.info(f"Wrote 0x{address:X} at 0x{address:X}")
+            read_value = await wrapper.read_cxl_mem(address)
+            logger.info(f"Read 0x{read_value:X} at 0x{address:X}")
 
 
 def main():
@@ -75,22 +121,32 @@ def main():
 
     apps = []
 
-    # Add Host
     switch_host = "0.0.0.0"
     switch_port = 8000
-    host_config = CxlComplexHostConfig(
-        host_name="CXLHost",
-        root_bus=0,
-        root_port_switch_type=ROOT_PORT_SWITCH_TYPE.PASS_THROUGH,
-        root_ports=[
-            RootPortClientConfig(port_index=0, switch_host=switch_host, switch_port=switch_port)
-        ],
-        memory_ranges=[],
-        memory_controller=RootComplexMemoryControllerConfig(
-            memory_size=0x10000, memory_filename="memory_dram.bin"
-        ),
+    # Add CXL Complex Host
+
+    # host_config = CxlComplexHostConfig(
+    #     host_name="CXLHost",
+    #     root_bus=0,
+    #     root_port_switch_type=ROOT_PORT_SWITCH_TYPE.PASS_THROUGH,
+    #     root_ports=[
+    #         RootPortClientConfig(port_index=0, switch_host=switch_host, switch_port=switch_port)
+    #     ],
+    #     memory_ranges=[],
+    #     memory_controller=RootComplexMemoryControllerConfig(
+    #         memory_size=0x10000, memory_filename="memory_dram.bin"
+    #     ),
+    # )
+    # host = CxlComplexHost(host_config)
+    # apps.append(host)
+
+    host = CxlHost(
+        port_index=0,
+        switch_host=switch_host,
+        switch_port=switch_port,
+        hm_mode=False,
+        test_mode=True,
     )
-    host = CxlComplexHost(host_config)
     apps.append(host)
 
     # Add PCI devices
