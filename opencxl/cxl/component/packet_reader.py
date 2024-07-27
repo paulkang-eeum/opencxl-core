@@ -30,7 +30,7 @@ from opencxl.cxl.transport.transaction import (
     CxlMemS2MDRSPacket,
 )
 from opencxl.util.logger import logger
-from opencxl.util.component import LabeledComponent
+from opencxl.util.component import LabeledComponent, Label
 
 
 class PACKET_READ_STATUS(Enum):
@@ -40,12 +40,8 @@ class PACKET_READ_STATUS(Enum):
 
 
 class PacketReader(LabeledComponent):
-    def __init__(
-        self, reader: StreamReader, label: Optional[str] = None, parent_name: Optional[str] = None
-    ):
-        label_prefix = f"{parent_name}:" if parent_name else ""
-        label_suffix = f":{label}" if label else ""
-        super().__init__(lambda class_name: f"{label_prefix}{class_name}{label_suffix}")
+    def __init__(self, reader: StreamReader, label: Label = None):
+        super().__init__(label)
         self._reader = reader
         self._aborted = False
         self._task = None

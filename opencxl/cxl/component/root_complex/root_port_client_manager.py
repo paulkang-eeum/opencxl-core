@@ -8,7 +8,7 @@
 import asyncio
 from dataclasses import dataclass, field
 from typing import List
-from opencxl.util.component import RunnableComponent
+from opencxl.util.component import RunnableComponent, Label
 from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.cxl.component.switch_connection_client import SwitchConnectionClient
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
@@ -34,17 +34,18 @@ class RootPortConnection:
 
 
 class RootPortClientManager(RunnableComponent):
-    def __init__(self, config: RootPortClientManagerConfig):
-        super().__init__(lambda class_name: f"{config.host_name}:{class_name}:")
+    def __init__(self, config: RootPortClientManagerConfig, label: Label = None):
+        super().__init__(label)
 
         self._switch_clients: List[SwitchConnectionClient] = []
         for client_config in config.client_configs:
+            port_str = f"Port{client_config.port_index}"
             connection_client = SwitchConnectionClient(
                 client_config.port_index,
                 CXL_COMPONENT_TYPE.R,
                 host=client_config.switch_host,
                 port=client_config.switch_port,
-                parent_name=self.get_message_label(),
+                label=lambda class_name: f"{self.get_message_label()}:{class_name}:{port_str}",
             )
             self._switch_clients.append(connection_client)
 

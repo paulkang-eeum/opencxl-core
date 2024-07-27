@@ -8,7 +8,7 @@
 from dataclasses import dataclass
 from typing import cast
 from asyncio import Queue, create_task, gather, timeout, exceptions
-from opencxl.util.component import RunnableComponent
+from opencxl.util.component import RunnableComponent, Label
 from opencxl.pci.component.fifo_pair import FifoPair
 from opencxl.cxl.transport.memory_fifo import MemoryFifoPair
 from opencxl.util.logger import logger
@@ -38,8 +38,8 @@ class IoBridgeConfig:
 
 
 class IoBridge(RunnableComponent):
-    def __init__(self, config: IoBridgeConfig):
-        super().__init__(lambda class_name: f"{config.host_name}:{class_name}")
+    def __init__(self, config: IoBridgeConfig, label: Label = None):
+        super().__init__(label)
         self._root_bus = config.root_bus
         self._cxl_io_cfg_fifos = config.cxl_io_cfg_fifos
         self._cxl_io_mmio_fifos = config.cxl_io_mmio_fifos

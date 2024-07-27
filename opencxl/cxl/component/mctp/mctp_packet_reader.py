@@ -7,13 +7,13 @@
 
 from asyncio import StreamReader, create_task
 from opencxl.cxl.transport.transaction import CciMessageHeaderPacket, CciMessagePacket
-from opencxl.util.component import LabeledComponent
+from opencxl.util.component import LabeledComponent, Label
 from typing import Optional
 from opencxl.util.logger import logger
 
 
 class MctpPacketReader(LabeledComponent):
-    def __init__(self, reader: StreamReader, label: Optional[str] = None):
+    def __init__(self, reader: StreamReader, label: Label = None):
         super().__init__(label)
         self._reader = reader
         self._aborted = False

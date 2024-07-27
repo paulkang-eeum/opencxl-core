@@ -1707,6 +1707,7 @@ class CxlMemMemDataPacket(CxlMemS2MDRSPacket):
         packet.system_header.payload_type = PAYLOAD_TYPE.CXL_MEM
         packet.system_header.payload_length = len(packet)
         packet.cxl_mem_header.msg_class = CXL_MEM_MSG_CLASS.S2M_DRS
+        packet.s2mdrs_header.valid = 0b1
         packet.s2mdrs_header.opcode = drs_opcode
         packet.s2mdrs_header.meta_field = meta_field
         packet.s2mdrs_header.meta_value = meta_value

@@ -10,7 +10,7 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import List
 from enum import Enum, auto
-from opencxl.util.component import RunnableComponent
+from opencxl.util.component import RunnableComponent, Label
 from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.pci.component.packet_processor import PacketProcessor
 
@@ -35,10 +35,8 @@ class CxlRootPortConfig:
 
 
 class CxlRootPort(RunnableComponent):
-    def __init__(self, config: CxlRootPortConfig):
-        super().__init__(
-            lambda class_name: f"{config.host_name}:{class_name}:RootPort{config.port_index}"
-        )
+    def __init__(self, config: CxlRootPortConfig, label: Label = None):
+        super().__init__(label)
         if not config.is_pass_through:
             raise Exception("Only pass-through mode is supported")
 
@@ -115,8 +113,8 @@ class RootPortSwitchBase(RunnableComponent, ABC):
 
 
 class SimpleRootPortSwitch(RootPortSwitchBase):
-    def __init__(self, config: RootPortSwitchConfig):
-        super().__init__(lambda class_name: f"{config.host_name}:{class_name}")
+    def __init__(self, config: RootPortSwitchConfig, label: Label = None):
+        super().__init__(label)
         if len(config.root_ports) != 1:
             raise Exception("the length of config.root_ports must be 1 for SimpleRootPortSwitch")
         cxl_root_port_config = CxlRootPortConfig(
@@ -126,7 +124,12 @@ class SimpleRootPortSwitch(RootPortSwitchBase):
             is_pass_through=True,
             host_name=config.host_name,
         )
-        self._root_port_device_client = CxlRootPort(cxl_root_port_config)
+
+        port_str = f"Port{cxl_root_port_config.port_index}"
+        self._root_port_device_client = CxlRootPort(
+            cxl_root_port_config,
+            label=lambda class_name: f"{self.get_message_label()}:{class_name}:{port_str}",
+        )
         self._root_bus_num = config.root_bus + 1
 
     def get_root_bus(self) -> int:

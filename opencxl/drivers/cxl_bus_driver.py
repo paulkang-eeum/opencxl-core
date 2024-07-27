@@ -293,7 +293,6 @@ class CxlDeviceInfo:
             logger.warning(f"{self._get_prefix()}Not found any available HDM decoders")
             return False
 
-        register_base_address = hdm_decoder.address
         logger.debug(
             f"{self._get_prefix()}HDM Decoder Capability Offset: 0x{register_base_address:x}"
         )
@@ -349,6 +348,29 @@ class CxlDeviceInfo:
     def is_cxl_device(self) -> bool:
         device_port_type = self.pci_device_info.get_device_port_type()
         return device_port_type == PCI_DEVICE_PORT_TYPE.PCI_EXPRESS_ENDPOINT and self.device_dvsec
+
+    async def reset_hdm_decoders(self) -> bool:
+        hdm_decoder = self.get_cachemem_register_by_id(
+            CXL_CACHEMEM_REGISTER_CAPABILITY_ID.CXL_HDM_DECODER
+        )
+
+        if not hdm_decoder:
+            return False
+
+        register_base_address = hdm_decoder.address
+        decoder_count = await self._get_hdm_decoder_count(register_base_address)
+        if decoder_count == 0:
+            return None
+
+        for decoder_index in range(decoder_count):
+            register_offset = 0x20 + decoder_index * 0x20 + register_base_address
+            register_value = await self.root_complex.read_mmio(
+                register_offset, CXL_HDM_DECODER_CONTROL_REGISTER_SIZE
+            )
+            is_committed = bool(register_value & CXL_HDM_DECODER_CONTROL_REGISTER_COMMITTED_MASK)
+            if is_committed:
+                await self.root_complex.write_mmio(register_offset, 4, 0)
+                logger.info(f"{self._get_prefix()}Resetting HDM Decoder {decoder_index}")
 
 
 class CxlBusDriver(LabeledComponent):

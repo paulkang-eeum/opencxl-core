@@ -13,7 +13,7 @@ from opencxl.cxl.mmio.component_register.memcache_register.capability import (
     CxlCapabilityIDToName,
 )
 from opencxl.util.logger import logger
-from opencxl.util.component import RunnableComponent
+from opencxl.util.component import RunnableComponent, Label
 from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.pci.component.pci import (
     PCI_CLASS,
@@ -189,19 +189,20 @@ class CxlRootPortDevice(RunnableComponent):
         self,
         downstream_connection: CxlConnection,
         secondary_bus: int = 1,
-        label: Optional[str] = None,
-        test_mode: bool = False,
+        label: Label = None,
+        hdm_init: bool = True,
+        port_index: int = 0,
     ):
         super().__init__(label)
         self._downstream_connection = downstream_connection
         self._secondary_bus = secondary_bus
         self._continue = True
-        self._test_mode = test_mode
+        self._hdm_init = hdm_init
         self._run_fut = None
         self._next_tag = 0
 
         # set default HPA base address using port index
-        self._cxl_hpa_base = 0x100000000000 | (int(label[-1]) << 40)
+        self._cxl_hpa_base = 0x100000000000 | (port_index << 40)
         self._used_hpa_size = 0
 
     """
@@ -319,7 +320,7 @@ class CxlRootPortDevice(RunnableComponent):
         return cpld_packet.data
 
     async def cxl_mem_read(self, address: int) -> int:
-        logger.info(self._create_message(f"CXL.mem Read: HPA addr:0x{address:08x}"))
+        logger.debug(self._create_message(f"CXL.mem Read: HPA addr:0x{address:08x}"))
         packet = CxlMemMemRdPacket.create(address)
         await self._downstream_connection.cxl_mem_fifo.host_to_target.put(packet)
         try:
@@ -333,7 +334,7 @@ class CxlRootPortDevice(RunnableComponent):
             return None
 
     async def cxl_mem_write(self, address: int, data: int) -> int:
-        logger.info(
+        logger.debug(
             self._create_message(f"CXL.mem Write: HPA addr:0x{address:08x} data:0x{data:08x}")
         )
         packet = CxlMemMemWrPacket.create(address, data)
@@ -1081,8 +1082,6 @@ class CxlRootPortDevice(RunnableComponent):
             self._used_hpa_size += hpa_size
 
     async def init(self, hpa_base: int):
-        if self._test_mode:
-            return
         logger.debug(self._create_message("Starting CXL initialization"))
         memory_base_address = 0xFE000000
         self._cxl_hpa_base = hpa_base
@@ -1101,7 +1100,8 @@ class CxlRootPortDevice(RunnableComponent):
 
     async def _run(self):
         self._run_fut = asyncio.Future()
-        await self.init(self._cxl_hpa_base)
+        if self._hdm_init:
+            await self.init(self._cxl_hpa_base)
         await self._change_status_to_running()
         logger.info(self._create_message("Waiting for a new action"))
         await self._run_fut

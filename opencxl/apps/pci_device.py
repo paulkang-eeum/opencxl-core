@@ -18,23 +18,17 @@ from opencxl.pci.component.pci import (
 from opencxl.cxl.component.switch_connection_client import SwitchConnectionClient
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 
+"""
+NOTE: An App's constructor should not receive log label as an argument.
+"""
+
 
 class PciDevice(RunnableComponent):
-    def __init__(
-        self,
-        port_index: int,
-        bar_size: int,
-        host: str = "0.0.0.0",
-        port: int = 8000,
-    ):
-        label = f"Port{port_index}"
-        super().__init__(label)
+    def __init__(self, port_index: int, bar_size: int, host: str = "0.0.0.0", port: int = 8000):
+
+        super().__init__(lambda class_name: f"{class_name}App:Port{port_index}")
         self._sw_conn_client = SwitchConnectionClient(
-            port_index,
-            CXL_COMPONENT_TYPE.P,
-            host=host,
-            port=port,
-            parent_name=f"PciDevice{port_index}",
+            port_index, CXL_COMPONENT_TYPE.P, host=host, port=port, label=self.build_child_label()
         )
         self._pci_device = PciDeviceInternal(
             transport_connection=self._sw_conn_client.get_cxl_connection(),
@@ -45,7 +39,7 @@ class PciDevice(RunnableComponent):
                 PCI_SYSTEM_PERIPHERAL_SUBCLASS.OTHER,
             ),
             bar_size=bar_size,
-            label=f"PCIDevice{port_index}",
+            label=self.build_child_label(),
         )
 
     async def _run(self):

@@ -7,7 +7,7 @@
 
 from dataclasses import dataclass
 from asyncio import create_task, gather
-from opencxl.util.component import RunnableComponent
+from opencxl.util.component import RunnableComponent, Label
 from opencxl.cxl.transport.memory_fifo import (
     MemoryFifoPair,
     MEMORY_REQUEST_TYPE,
@@ -27,8 +27,8 @@ class MemoryControllerConfig:
 
 
 class MemoryController(RunnableComponent):
-    def __init__(self, config: MemoryControllerConfig):
-        super().__init__(lambda class_name: f"{config.host_name}:{class_name}")
+    def __init__(self, config: MemoryControllerConfig, label: Label = None):
+        super().__init__(label)
         self._memory_consumer_fifos = config.memory_consumer_fifos
         self._file_accessor = FileAccessor(config.memory_filename, config.memory_size)
 

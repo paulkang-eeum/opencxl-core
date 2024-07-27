@@ -8,13 +8,14 @@ from opencxl.apps.cxl_complex_host import (
 )
 from opencxl.apps.pci_device import PciDevice
 from opencxl.util.logger import logger
-from opencxl.util.component import RunnableComponent
+from opencxl.util.component import RunnableComponent, LabeledComponent
 from opencxl.drivers.pci_bus_driver import PciBusDriver
 from typing import List, cast
 
 
-class TestRunner:
+class TestRunner(LabeledComponent):
     def __init__(self, apps: List[RunnableComponent]):
+        super().__init__()
         self._apps = apps
 
     async def run(self):
@@ -31,13 +32,13 @@ class TestRunner:
         await asyncio.gather(*tasks)
 
     async def run_test(self):
-        logger.info("Waiting for Apps to be ready")
+        logger.info(self._create_message("Waiting for Apps to be ready"))
         await self.wait_for_ready()
         host = cast(CxlComplexHost, self._apps[0])
         bus_driver = PciBusDriver(host.get_root_complex())
-        logger.info("Starting PCI bus driver init")
+        logger.info(self._create_message("Starting PCI bus driver init"))
         await bus_driver.init()
-        logger.info("Completed PCI bus driver init")
+        logger.info(self._create_message("Completed PCI bus driver init"))
 
 
 def main():
@@ -61,7 +62,7 @@ def main():
     switch_host = "0.0.0.0"
     switch_port = 8000
     host_config = CxlComplexHostConfig(
-        host_name="CXLHost",
+        host_name="CXLHost0",
         root_bus=0,
         root_port_switch_type=ROOT_PORT_SWITCH_TYPE.PASS_THROUGH,
         root_ports=[

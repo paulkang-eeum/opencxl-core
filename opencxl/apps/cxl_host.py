@@ -14,7 +14,7 @@ from websockets import WebSocketClientProtocol
 
 from opencxl.cxl.transport.transaction import CXL_MEM_M2SBIRSP_OPCODE
 from opencxl.util.logger import logger
-from opencxl.util.component import RunnableComponent
+from opencxl.util.component import RunnableComponent, Label
 from opencxl.cxl.device.root_port_device import CxlRootPortDevice
 from opencxl.cxl.component.switch_connection_client import SwitchConnectionClient
 from opencxl.cxl.component.host_manager_conn import (
@@ -24,6 +24,10 @@ from opencxl.cxl.component.host_manager_conn import (
     Result,
 )
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
+
+"""
+NOTE: An App's constructor should not receive log label as an argument.
+"""
 
 
 class CxlHost(RunnableComponent):
@@ -35,13 +39,16 @@ class CxlHost(RunnableComponent):
         host_host: str = "0.0.0.0",
         host_port: int = 8300,
         hm_mode: bool = True,
-        test_mode: bool = False,
+        hdm_init: bool = True,
     ):
-        label = f"Port{port_index}"
-        super().__init__(label)
-        self._test_mode = test_mode
+        super().__init__(lambda class_name: f"{class_name}App:Port{port_index}")
+        self._hdm_init = hdm_init
         self._switch_conn_client = SwitchConnectionClient(
-            port_index, CXL_COMPONENT_TYPE.R, host=switch_host, port=switch_port
+            port_index,
+            CXL_COMPONENT_TYPE.R,
+            host=switch_host,
+            port=switch_port,
+            label=self.build_child_label(),
         )
         self._methods = {
             "HOST_CXL_MEM_READ": self._cxl_mem_read,
@@ -61,8 +68,9 @@ class CxlHost(RunnableComponent):
             )
         self._root_port_device = CxlRootPortDevice(
             downstream_connection=self._switch_conn_client.get_cxl_connection(),
-            label=label,
-            test_mode=self._test_mode,
+            hdm_init=self._hdm_init,
+            port_index=port_index,
+            label=self.build_child_label(),
         )
         self._port_index = port_index
         self._hm_mode = hm_mode
