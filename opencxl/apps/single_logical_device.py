@@ -22,10 +22,9 @@ class SingleLogicalDevice(RunnableComponent):
         host: str = "0.0.0.0",
         port: int = 8000,
     ):
-        label = f"Port{port_index}"
-        super().__init__(label)
+        super().__init__(lambda class_name: f"{class_name}App:Port{port_index}")
         self._sw_conn_client = SwitchConnectionClient(
-            port_index, CXL_COMPONENT_TYPE.D2, host=host, port=port
+            port_index, CXL_COMPONENT_TYPE.D2, host=host, port=port, label=self.build_child_label()
         )
 
         self._cxl_type3_device = CxlType3Device(
@@ -33,7 +32,7 @@ class SingleLogicalDevice(RunnableComponent):
             memory_size=memory_size,
             memory_file=memory_file,
             dev_type=CXL_T3_DEV_TYPE.SLD,
-            label=label,
+            label=self.build_child_label(),
         )
 
     async def _run(self):

@@ -55,7 +55,7 @@ class CxlPacketProcessor(RunnableComponent):
         label: Optional[str] = None,
     ):
         super().__init__(label)
-        self._reader = PacketReader(reader, label=label)
+        self._reader = PacketReader(reader, label=self.build_child_label())
         self._writer = writer
         self._tlp_table: Dict[int, CXL_IO_FIFO_TYPE] = {}
         self._cxl_connection = cxl_connection

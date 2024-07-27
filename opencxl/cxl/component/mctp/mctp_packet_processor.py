@@ -11,7 +11,7 @@ from opencxl.cxl.component.mctp.mctp_packet_reader import (
     MctpPacketReader,
     CciMessagePacket,
 )
-from opencxl.util.component import RunnableComponent
+from opencxl.util.component import RunnableComponent, Label
 from typing import Optional, cast
 from enum import Enum, auto
 from opencxl.util.logger import logger
@@ -29,10 +29,10 @@ class MctpPacketProcessor(RunnableComponent):
         writer: StreamWriter,
         mctp_connection: MctpConnection,
         processor_type: MCTP_PACKET_PROCESSOR_TYPE,
-        label: Optional[str] = None,
+        label: Label = None,
     ):
         super().__init__(label)
-        self._reader = MctpPacketReader(reader, label=label)
+        self._reader = MctpPacketReader(reader, label=self.build_child_label())
         self._writer = writer
         self._mctp_connection = mctp_connection
         if processor_type == MCTP_PACKET_PROCESSOR_TYPE.CONTROLLER:

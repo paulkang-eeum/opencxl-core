@@ -27,7 +27,7 @@ from opencxl.cxl.component.cxl_component import (
     PORT_TYPE,
 )
 from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
-from opencxl.util.component import RunnableComponent
+from opencxl.util.component import RunnableComponent, Label
 from opencxl.util.logger import logger
 
 
@@ -61,8 +61,9 @@ class SwitchConnectionManager(RunnableComponent):
         host: str = "0.0.0.0",
         port: int = 8000,
         connection_timeout_ms: int = 5000,
+        label: Label = None,
     ):
-        super().__init__()
+        super().__init__(label)
         self._port_configs = port_configs
         self._host = host
         self._port = port
@@ -155,7 +156,7 @@ class SwitchConnectionManager(RunnableComponent):
 
         logger.debug(self._create_message("Waiting for a connection request"))
 
-        packet_reader = PacketReader(reader, "SwitchConnectionManager")
+        packet_reader = PacketReader(reader, label=self.build_child_label())
         packet = await packet_reader.get_packet()
         base_packet = cast(BasePacket, packet)
 

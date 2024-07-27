@@ -58,7 +58,7 @@ class RootComplexConfig:
 
 class RootComplex(RunnableComponent):
     def __init__(self, config: RootComplexConfig, label: Optional[str] = None):
-        super().__init__(lambda class_name: f"{config.host_name}:{class_name}")
+        super().__init__(label)
 
         cache_to_home_agent_fifo = config.cache_to_home_agent_fifo
         home_agent_to_cache_fifo = config.home_agent_to_cache_fifo
@@ -78,7 +78,9 @@ class RootComplex(RunnableComponent):
                 root_ports=config.root_ports,
                 upstream_connection=root_port_switch_upstream_connection,
             )
-            self._root_port_switch = SimpleRootPortSwitch(root_port_switch_config)
+            self._root_port_switch = SimpleRootPortSwitch(
+                root_port_switch_config, label=self.build_child_label()
+            )
         else:
             raise Exception(
                 f"Unsupported root port switch type {config.root_port_switch_type.name}"
@@ -92,7 +94,7 @@ class RootComplex(RunnableComponent):
             memory_producer_fifos=io_bridge_to_home_agent_memory_fifo,
             host_name=config.host_name,
         )
-        self._io_bridge = IoBridge(io_bridge_config)
+        self._io_bridge = IoBridge(io_bridge_config, label=self.build_child_label())
 
         # Create Cache Coherency Bridge
         cache_coherency_bridge_config = CacheCoherencyBridgeConfig(
@@ -102,7 +104,9 @@ class RootComplex(RunnableComponent):
             upstream_coh_bridge_to_cache_fifo=coh_bridge_to_cache_fifo,
             downstream_cxl_cache_fifos=root_port_switch_upstream_connection.cxl_cache_fifo,
         )
-        self._cache_coherency_bridge = CacheCoherencyBridge(cache_coherency_bridge_config)
+        self._cache_coherency_bridge = CacheCoherencyBridge(
+            cache_coherency_bridge_config, label=self.build_child_label()
+        )
 
         # Create Home Agent
         home_agent_config = HomeAgentConfig(
@@ -115,7 +119,7 @@ class RootComplex(RunnableComponent):
             upstream_home_agent_to_cache_fifo=home_agent_to_cache_fifo,
             downstream_cxl_mem_fifos=root_port_switch_upstream_connection.cxl_mem_fifo,
         )
-        self._home_agent = HomeAgent(home_agent_config)
+        self._home_agent = HomeAgent(home_agent_config, label=self.build_child_label())
 
         # Create Memory Controller
         memory_controller_config = MemoryControllerConfig(
@@ -124,7 +128,9 @@ class RootComplex(RunnableComponent):
             host_name=config.host_name,
             memory_consumer_fifos=home_agent_to_memory_controller_fifo,
         )
-        self._memory_controller = MemoryController(memory_controller_config)
+        self._memory_controller = MemoryController(
+            memory_controller_config, label=self.build_child_label()
+        )
 
     def get_root_bus(self) -> int:
         return self._root_port_switch.get_root_bus()

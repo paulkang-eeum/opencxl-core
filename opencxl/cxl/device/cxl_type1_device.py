@@ -135,7 +135,7 @@ class CxlType1Device(RunnableComponent):
         pci_component = PciComponent(pci_identity, mmio_manager)
 
         # Create CxlMemoryDeviceComponent
-        logger.debug(f"Total Capacity = {self._memory_size:x}")
+        logger.debug(self._create_message(f"Total Capacity = {self._memory_size:x}"))
         identity = MemoryDeviceIdentity()
         identity.fw_revision = MemoryDeviceIdentity.ascii_str_to_int("EEUM EMU 1.0", 16)
         identity.set_total_capacity(self._memory_size)

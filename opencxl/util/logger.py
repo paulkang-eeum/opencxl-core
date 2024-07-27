@@ -38,7 +38,7 @@ class MyLogger(logging.getLoggerClass()):
 
         m_fmt = "%(message)s"
         if show_linenumber:
-            m_fmt += "(%(filename)s:%(lineno)d)"
+            m_fmt += " (%(filename)s:%(lineno)d)"
 
         if len(h_fmt):
             fmt = h_fmt + " | " + m_fmt

@@ -35,6 +35,9 @@ class LabeledComponent:
         else:
             return class_name
 
+    def build_child_label(self) -> Callable[[str], str]:
+        return lambda class_name: f"{self.get_message_label()}:{class_name}"
+
     def _create_message(self, message):
         return f"[{self.get_message_label()}] {message}"
 

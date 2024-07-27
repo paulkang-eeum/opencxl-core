@@ -12,7 +12,7 @@ from enum import Enum, auto
 from typing import List, cast
 
 from opencxl.util.logger import logger
-from opencxl.util.component import RunnableComponent
+from opencxl.util.component import RunnableComponent, Label
 from opencxl.pci.component.fifo_pair import FifoPair
 from opencxl.cxl.transport.memory_fifo import (
     MemoryFifoPair,
@@ -75,8 +75,8 @@ class HomeAgentConfig:
 
 
 class HomeAgent(RunnableComponent):
-    def __init__(self, config: HomeAgentConfig):
-        super().__init__(lambda class_name: f"{config.host_name}:{class_name}")
+    def __init__(self, config: HomeAgentConfig, label: Label = None):
+        super().__init__(label)
 
         self._memory_ranges = config.memory_ranges
         self._memory_consumer_io_fifos = config.memory_consumer_io_fifos

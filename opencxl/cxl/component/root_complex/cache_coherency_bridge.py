@@ -10,7 +10,7 @@ from asyncio import create_task, gather
 from typing import cast
 
 from opencxl.util.logger import logger
-from opencxl.util.component import RunnableComponent
+from opencxl.util.component import RunnableComponent, Label
 from opencxl.pci.component.fifo_pair import FifoPair
 from opencxl.cxl.transport.memory_fifo import (
     MemoryFifoPair,
@@ -50,8 +50,8 @@ class CacheCoherencyBridgeConfig:
 
 
 class CacheCoherencyBridge(RunnableComponent):
-    def __init__(self, config: CacheCoherencyBridgeConfig):
-        super().__init__(lambda class_name: f"{config.host_name}:{class_name}")
+    def __init__(self, config: CacheCoherencyBridgeConfig, label: Label = None):
+        super().__init__(label)
 
         self._memory_producer_fifos = config.memory_producer_fifos
         self._upstream_cache_to_coh_bridge_fifo = config.upstream_cache_to_coh_bridge_fifo

@@ -84,11 +84,11 @@ class CxlType3Device(RunnableComponent):
             None,
             device_type=PCI_DEVICE_TYPE.ENDPOINT,
             init_callback=self._init_device,
-            label=self._label,
+            label=self.build_child_label(),
         )
         self._cxl_mem_manager = CxlMemManager(
             upstream_fifo=self._upstream_connection.cxl_mem_fifo,
-            label=self._label,
+            label=self.build_child_label(),
         )
 
         # Update CxlMemManager with a CxlMemoryDeviceComponent
@@ -110,13 +110,17 @@ class CxlType3Device(RunnableComponent):
         pci_component = PciComponent(pci_identity, mmio_manager)
 
         # Create CxlMemoryDeviceComponent
-        logger.debug(f"Total Capacity = {self._memory_size:x}")
+        logger.debug(self._create_message(f"Total Capacity = {self._memory_size:x}"))
         identity = MemoryDeviceIdentity()
         identity.fw_revision = MemoryDeviceIdentity.ascii_str_to_int("EEUM EMU 1.0", 16)
         identity.set_total_capacity(self._memory_size)
         identity.set_volatile_only_capacity(self._memory_size)
 
-        logger.debug(f"Initialized size at device level: 0x{identity.volatile_only_capacity:08x}")
+        logger.debug(
+            self._create_message(
+                f"Initialized size at device level: 0x{identity.volatile_only_capacity:08x}"
+            )
+        )
         self._cxl_memory_device_component = CxlMemoryDeviceComponent(
             identity,
             decoder_count=self._decoder_count,

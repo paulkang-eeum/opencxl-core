@@ -22,7 +22,7 @@ from opencxl.pci.component.config_space_manager import (
     ConfigSpaceManager,
     PCI_DEVICE_TYPE,
 )
-from opencxl.util.component import RunnableComponent
+from opencxl.util.component import RunnableComponent, Label
 from opencxl.util.unaligned_bit_structure import (
     ShareableByteArray,
     UnalignedBitStructure,
@@ -39,9 +39,9 @@ class PciDevice(RunnableComponent):
         transport_connection: PciConnection,
         identity: Optional[PciComponentIdentity] = None,
         bar_size: int = 0,
-        label: Optional[str] = None,
+        label: Label = None,
     ):
-        super().__init__()
+        super().__init__(label)
         if identity == None:
             identity = PciComponentIdentity(
                 vendor_id=EEUM_VID,
@@ -50,14 +50,13 @@ class PciDevice(RunnableComponent):
                 sub_class_coce=PCI_SYSTEM_PERIPHERAL_SUBCLASS.OTHER,
             )
         self._upstream_connection = transport_connection
-        self._label = label
         self._mmio_manager = MmioManager(
-            upstream_fifo=self._upstream_connection.mmio_fifo, label=label
+            upstream_fifo=self._upstream_connection.mmio_fifo, label=self.build_child_label()
         )
         pci_component = PciComponent(identity, self._mmio_manager)
         self._config_space_manager = ConfigSpaceManager(
             upstream_fifo=self._upstream_connection.cfg_fifo,
-            label=self._label,
+            label=self.build_child_label(),
             device_type=PCI_DEVICE_TYPE.ENDPOINT,
         )
         if bar_size > 0:

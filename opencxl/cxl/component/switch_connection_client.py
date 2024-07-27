@@ -20,7 +20,7 @@ from opencxl.cxl.component.common import CXL_COMPONENT_TYPE
 from opencxl.cxl.component.packet_reader import PacketReader
 from opencxl.cxl.component.cxl_connection import CxlConnection
 from opencxl.cxl.component.cxl_packet_processor import CxlPacketProcessor
-from opencxl.util.component import RunnableComponent
+from opencxl.util.component import RunnableComponent, Label
 from opencxl.util.pci import create_bdf
 
 
@@ -37,10 +37,9 @@ class SwitchConnectionClient(RunnableComponent):
         host: str = "0.0.0.0",
         port: int = 8000,
         retry: bool = True,
-        parent_name: Optional[str] = None,
+        label: Label = None,
     ):
-        label_prefix = parent_name + ":" if parent_name else ""
-        super().__init__(lambda class_name: f"{label_prefix}{class_name}:Port{port_index}")
+        super().__init__(label)
         self._host = host
         self._port = port
         self._port_index = port_index
@@ -64,7 +63,7 @@ class SwitchConnectionClient(RunnableComponent):
         await writer.drain()
 
         logger.debug(self._create_message("Waiting for Connection Accept"))
-        packet_reader = PacketReader(reader, parent_name=self.get_message_label())
+        packet_reader = PacketReader(reader, label=self.get_message_label())
         response = await packet_reader.get_packet()
 
         if not response.is_sideband():
@@ -124,7 +123,7 @@ class SwitchConnectionClient(RunnableComponent):
             writer,
             self._cxl_connection,
             self._component_type,
-            label=f"ClientPort{self._port_index}",
+            label=self.build_child_label(),
         )
         await self._change_status_to_running()
         await self._packet_processor.run()

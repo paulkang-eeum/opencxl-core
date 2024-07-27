@@ -48,9 +48,17 @@ class CxlComplexHostConfig:
     coh_type: Optional[COH_POLICY_TYPE] = COH_POLICY_TYPE.DotMemBI
 
 
+"""
+NOTE: An App's constructor should not receive log label as an argument.
+
+CxlComplexHost may be connected to multiple upstream ports of a switch
+if it has multiple root ports.
+"""
+
+
 class CxlComplexHost(RunnableComponent):
     def __init__(self, config: CxlComplexHostConfig):
-        super().__init__(lambda class_name: f"{config.host_name}:{class_name}")
+        super().__init__(lambda class_name: f"{class_name}App:{config.host_name}")
 
         processor_to_cache_fifo = MemoryFifoPair()
         cache_to_home_agent_fifo = CacheFifoPair()
@@ -62,7 +70,9 @@ class CxlComplexHost(RunnableComponent):
         root_port_client_manager_config = RootPortClientManagerConfig(
             client_configs=config.root_ports, host_name=config.host_name
         )
-        self._root_port_client_manager = RootPortClientManager(root_port_client_manager_config)
+        self._root_port_client_manager = RootPortClientManager(
+            root_port_client_manager_config, label=self.build_child_label()
+        )
 
         # Create Root Complex
         root_complex_root_ports = [
@@ -83,7 +93,7 @@ class CxlComplexHost(RunnableComponent):
             memory_ranges=[],
             root_ports=root_complex_root_ports,
         )
-        self._root_complex = RootComplex(root_complex_config)
+        self._root_complex = RootComplex(root_complex_config, label=self.build_child_label())
 
         if config.coh_type == COH_POLICY_TYPE.DotCache:
             cache_to_coh_agent_fifo = cache_to_coh_bridge_fifo
