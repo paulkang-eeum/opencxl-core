@@ -58,7 +58,7 @@ class PacketReader(LabeledComponent):
                 logger.debug(traceback.format_exc())
             raise Exception("PacketReader is aborted") from e
         except CancelledError as exc:
-            logger.debug(self._create_message("Aborted"))
+            logger.debug(self._create_message(f"Aborted"))
             raise Exception("PacketReader is aborted") from exc
         finally:
             self._task = None
@@ -88,21 +88,30 @@ class PacketReader(LabeledComponent):
     async def _get_payload(self) -> Tuple[BasePacket, bytes]:
         logger.debug(self._create_message("Waiting Packet"))
         header_load = await self._read_payload(BasePacket.get_size())
+        logger.debug(self._create_message("Received BasePacket"))
         base_packet = BasePacket()
         base_packet.reset(header_load)
         remaining_length = base_packet.system_header.payload_length - len(base_packet)
         if remaining_length < 0:
-            raise Exception("remaining length is less than 0")
+            msg = f"remaining length {remaining_length} is less than 0"
+            raise Exception(msg)
         payload = bytes(base_packet) + await self._read_payload(remaining_length)
         logger.debug(self._create_message("Received Packet"))
         return base_packet, payload
 
     async def _read_payload(self, size: int) -> bytes:
-        payload = await self._reader.read(size)
-        if not payload:
-            raise Exception("Connection disconnected")
-        return payload
-
+        try:
+            logger.debug(self._create_message("reading from socket"))
+            payload = await self._reader.read(size)
+            if not payload:
+                logger.debug(self_.create_message("Connection disconnected"))
+                raise Exception("Connection disconnected")
+            logger.debug(self._create_message("read from sockeet"))
+            return payload
+        except:
+            logger.debug(self._create_message(f"Failed to read from socket"))
+            raise Exception("unexpected error")
+    
     def _get_cxl_io_packet(self, payload: bytes) -> CxlIoBasePacket:
         cxl_io_base_packet = CxlIoBasePacket()
         header_size = len(cxl_io_base_packet.cxl_io_header) + BasePacket.get_size()

@@ -28,7 +28,12 @@ class PciDevice(RunnableComponent):
 
         super().__init__(lambda class_name: f"{class_name}App:Port{port_index}")
         self._sw_conn_client = SwitchConnectionClient(
-            port_index, CXL_COMPONENT_TYPE.P, host=host, port=port, label=self.build_child_label()
+            port_index,
+            CXL_COMPONENT_TYPE.P,
+            host=host,
+            port=port,
+            label=self.build_child_label(),
+            retry=False,
         )
         self._pci_device = PciDeviceInternal(
             transport_connection=self._sw_conn_client.get_cxl_connection(),

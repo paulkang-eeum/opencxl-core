@@ -34,11 +34,11 @@ class TestRunner(LabeledComponent):
     async def run_test(self):
         logger.info(self._create_message("Waiting for Apps to be ready"))
         await self.wait_for_ready()
-        host = cast(CxlComplexHost, self._apps[0])
-        bus_driver = PciBusDriver(host.get_root_complex())
-        logger.info(self._create_message("Starting PCI bus driver init"))
-        await bus_driver.init()
-        logger.info(self._create_message("Completed PCI bus driver init"))
+        # host = cast(CxlComplexHost, self._apps[0])
+        # bus_driver = PciBusDriver(host.get_root_complex())
+        # logger.info(self._create_message("Starting PCI bus driver init"))
+        # await bus_driver.init()
+        # logger.info(self._create_message("Completed PCI bus driver init"))
 
 
 def main():
@@ -59,25 +59,25 @@ def main():
     apps = []
 
     # Add Host
-    switch_host = "0.0.0.0"
-    switch_port = 8000
-    host_config = CxlComplexHostConfig(
-        host_name="CXLHost0",
-        root_bus=0,
-        root_port_switch_type=ROOT_PORT_SWITCH_TYPE.PASS_THROUGH,
-        root_ports=[
-            RootPortClientConfig(port_index=0, switch_host=switch_host, switch_port=switch_port)
-        ],
-        memory_ranges=[],
-        memory_controller=RootComplexMemoryControllerConfig(
-            memory_size=0x10000, memory_filename="memory_dram.bin"
-        ),
-    )
-    host = CxlComplexHost(host_config)
-    apps.append(host)
+    # switch_host = "0.0.0.0"
+    # switch_port = 8000
+    # host_config = CxlComplexHostConfig(
+    #     host_name="CXLHost0",
+    #     root_bus=0,
+    #     root_port_switch_type=ROOT_PORT_SWITCH_TYPE.PASS_THROUGH,
+    #     root_ports=[
+    #         RootPortClientConfig(port_index=0, switch_host=switch_host, switch_port=switch_port)
+    #     ],
+    #     memory_ranges=[],
+    #     memory_controller=RootComplexMemoryControllerConfig(
+    #         memory_size=0x10000, memory_filename="memory_dram.bin"
+    #     ),
+    # )
+    # host = CxlComplexHost(host_config)
+    # apps.append(host)
 
     # Add PCI devices
-    for port in range(1, 5):
+    for port in range(2, 5):
         device = PciDevice(port, 0x1000)
         apps.append(device)
 
