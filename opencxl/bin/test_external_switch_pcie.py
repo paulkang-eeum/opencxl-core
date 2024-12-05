@@ -11,7 +11,7 @@ from opencxl.util.logger import logger
 from opencxl.util.component import RunnableComponent, LabeledComponent
 from opencxl.drivers.pci_bus_driver import PciBusDriver
 from typing import List, cast
-
+import sys
 
 class TestRunner(LabeledComponent):
     def __init__(self, apps: List[RunnableComponent]):
@@ -41,7 +41,7 @@ class TestRunner(LabeledComponent):
         # logger.info(self._create_message("Completed PCI bus driver init"))
 
 
-def main():
+def main(switch_ports: List[int]):
     # Set up logger
     log_file = "test.log"
     log_level = "DEBUG"
@@ -77,13 +77,20 @@ def main():
     # apps.append(host)
 
     # Add PCI devices
-    for port in range(2, 5):
+    for port in switch_ports:
         device = PciDevice(port, 0x1000)
         apps.append(device)
 
     test_runner = TestRunner(apps)
     asyncio.run(test_runner.run())
 
+def parse_numbers(input_string):
+    return [int(num.strip()) for num in input_string.split(",") if num.strip().isdigit()]
+
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) < 2:
+        switch_ports = [1,2,3,4]
+    else:
+        switch_ports = parse_numbers(sys.argv[1])
+    main(switch_ports)
